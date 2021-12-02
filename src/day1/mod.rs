@@ -42,7 +42,7 @@ pub fn run() {
     );
 }
 
-mod test {
+mod tests {
     use super::*;
 
     #[test]
