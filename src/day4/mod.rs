@@ -1,20 +1,34 @@
 type BoardView = [[u8; 5]; 5];
 
 struct Board {
-    data: BoardView,
+    rows: BoardView,
+    columns: BoardView,
 }
 
 impl Board {
     fn from_matrix(matrix: BoardView) -> Self {
-        Self { data: matrix }
+        let mut columns: BoardView = [[0; 5]; 5];
+        for i in 0..matrix.len() {
+            for j in 0..matrix[0].len() {
+                columns[i][j] = matrix[j][i];
+            }
+        }
+        Self {
+            rows: matrix,
+            columns,
+        }
     }
 
     fn rows(&self) -> &BoardView {
-        &self.data
+        &self.rows
     }
 
     fn columns(&self) -> &BoardView {
-        todo!()
+        &self.columns
+    }
+
+    fn values(&self) -> Vec<u8> {
+        self.rows.iter().flatten().map(|x| *x).collect()
     }
 }
 
@@ -22,13 +36,7 @@ fn find_horizontal_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
     let mut board_index = 0;
     for board in boards {
         for row in board.rows() {
-            let mut n_matches = 0;
-            for v in row {
-                if inputs.contains(v) {
-                    n_matches += 1;
-                }
-            }
-            if n_matches >= 5 {
+            if has_bingo(row, inputs) {
                 return Some(board_index);
             }
         }
@@ -37,12 +45,65 @@ fn find_horizontal_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
     None
 }
 
-// fn find_vertical_bingo(boards, &[Board], inputs: &[u8]) -> Option<usize> {
-// let mut board_index = 0;
-// for board in boards {
+fn has_bingo(array: &[u8; 5], inputs: &[u8]) -> bool {
+    let mut n_matches = 0;
+    for v in array {
+        if inputs.contains(v) {
+            n_matches += 1;
+        }
+    }
+    if n_matches >= 5 {
+        return true;
+    }
+    false
+}
 
-// }
-// }
+fn find_vertical_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
+    let mut board_index = 0;
+    for board in boards {
+        for columns in board.columns() {
+            if has_bingo(columns, inputs) {
+                return Some(board_index);
+            }
+        }
+        board_index += 1;
+    }
+    None
+}
+
+struct Indices {
+    board_index: usize,
+    input_index: usize,
+}
+
+fn find_first_bingo(boards: &[Board], inputs: &[u8]) -> Option<Indices> {
+    for last_index in 5..inputs.len() {
+        let current_inputs = &inputs[0..last_index];
+        if let Some(winning_board_index) = find_horizontal_bingo(boards, current_inputs) {
+            return Some(Indices {
+                board_index: winning_board_index,
+                input_index: last_index,
+            });
+        }
+        if let Some(winning_board_index) = find_vertical_bingo(boards, current_inputs) {
+            return Some(Indices {
+                board_index: winning_board_index,
+                input_index: last_index,
+            });
+        }
+    }
+    None
+}
+
+fn calculate_answer(board: &Board, inputs: &[u8]) -> u32 {
+    let sum_of_unmarked_numers = board
+        .values()
+        .iter()
+        .filter(|x| !inputs.contains(x))
+        .fold(0_u32, |acc, x| acc + *x as u32);
+
+    sum_of_unmarked_numers * *inputs.last().unwrap() as u32
+}
 
 mod tests {
     #[allow(unused_imports)]
@@ -87,5 +148,34 @@ mod tests {
         let boards = get_boards();
         let inputs = [3, 15, 0, 0, 22];
         assert_eq!(find_horizontal_bingo(&boards, &inputs), Some(1));
+    }
+
+    #[test]
+    fn test_get_columns() {
+        let boards = get_boards();
+        assert_eq!(boards[0].columns()[0], [22, 8, 21, 6, 1])
+    }
+
+    #[test]
+    fn test_get_vertical_bingo() {
+        let boards = get_boards();
+        let inputs = [13, 2, 9, 10, 12];
+        assert_eq!(find_vertical_bingo(&boards, &inputs), Some(0));
+    }
+
+    #[test]
+    fn test_get_first_bingo() {
+        let boards = get_boards();
+        let inputs = get_inputs();
+        let indices = find_first_bingo(&boards, &inputs).unwrap();
+        assert_eq!(indices.board_index, 2);
+        assert_eq!(indices.input_index, 12);
+    }
+
+    #[test]
+    fn test_calculate_answer() {
+        let boards = get_boards();
+        let inputs = get_inputs();
+        assert_eq!(calculate_answer(&boards[2], &inputs[0..12]), 4512);
     }
 }
