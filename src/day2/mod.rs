@@ -17,8 +17,8 @@ fn read_input() -> Vec<Command> {
         if let Ok(result) = l {
             match parse_line(&result) {
                 Some(cmd) => parsed_input.push(cmd),
-                _ => {},
-            }    
+                _ => {}
+            }
         }
     }
     parsed_input
@@ -38,36 +38,46 @@ fn parse_line(input: &str) -> Option<Command> {
 
 fn calculate_destination(path: &[Command]) -> (i32, i32) {
     use Command::*;
-    path.iter().fold((0,0), |(distance, depth), cmd| {
-        match cmd {
+    path.iter()
+        .fold((0, 0), |(distance, depth), cmd| match cmd {
             Forward(d) => (distance + d, depth),
             Down(d) => (distance, depth + d),
             Up(d) => (distance, depth - d),
-        }
-    })
+        })
 }
 
 fn calculate_destination_with_aim(path: &[Command]) -> (i32, i32) {
     use Command::*;
-    let pos = path.iter().fold((0,0,0), |(distance, depth, aim), cmd| {
-        match cmd {
+    let pos = path
+        .iter()
+        .fold((0, 0, 0), |(distance, depth, aim), cmd| match cmd {
             Forward(x) => (distance + x, depth + aim * x, aim),
             Down(x) => (distance, depth, aim + x),
             Up(x) => (distance, depth, aim - x),
-        }
-    });
+        });
     (pos.0, pos.1)
 }
 
 pub fn run() {
     let path = read_input();
     let (distance, depth) = calculate_destination(&path);
-    println!("Task1: Distance travelled: {}, current depth: {}, product {}", distance, depth, distance*depth);
+    println!(
+        "Task1: Distance travelled: {}, current depth: {}, product {}",
+        distance,
+        depth,
+        distance * depth
+    );
     let (distance, depth) = calculate_destination_with_aim(&path);
-    println!("Task2: Distance travelled: {}, current depth: {}, product {}", distance, depth, distance*depth);
+    println!(
+        "Task2: Distance travelled: {}, current depth: {}, product {}",
+        distance,
+        depth,
+        distance * depth
+    );
 }
 
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]
@@ -92,6 +102,4 @@ mod tests {
         assert_eq!(parse_line("down 22021"), Some(Down(22021)));
         assert_eq!(parse_line("dn 22021"), None);
     }
-
-
 }
