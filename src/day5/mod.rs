@@ -43,8 +43,22 @@ fn read_input() -> Vec<Line> {
     parsed_input
 }
 
-fn filter_to_axis_aligned(all_lines: &Vec<Line>) -> Vec<Line> {
-    all_lines
+fn calculate_collision_grid(lines: &Vec<Line>, size: Vec2) -> Vec<Vec<u32>> {
+    let mut grid = vec![vec![0_u32; size[1] as usize]; size[0] as usize];
+    for l in lines.iter() {
+        for i in l.from[0]..=l.to[0] {
+            for j in l.from[1]..=l.to[1] {
+                println!("{},{}", i, j);
+                // TODO: These ranges only work one-way
+                grid[i as usize][j as usize] += 1;
+            }
+        }
+    }
+    grid
+}
+
+fn filter_to_axis_aligned(lines: &Vec<Line>) -> Vec<Line> {
+    lines
         .iter()
         .filter(|line| line.from[0] == line.to[0] || line.from[1] == line.to[1])
         .cloned()
@@ -79,5 +93,19 @@ mod tests {
         assert_eq!(inputs.len(), 10);
         let filtered = filter_to_axis_aligned(&inputs);
         assert_eq!(filtered.len(), 6);
+    }
+
+    #[test]
+    fn test_calculate_collision_grid() {
+        let inputs = get_input();
+        let filtered = filter_to_axis_aligned(&inputs);
+        let collision_grid = calculate_collision_grid(&filtered, [10, 10]);
+        assert_eq!(collision_grid[5][9], 1);
+        assert_eq!(collision_grid[6][9], 0);
+        assert_eq!(collision_grid[0][9], 2);
+        assert_eq!(collision_grid[1][9], 2);
+        assert_eq!(collision_grid[2][2], 1);
+        assert_eq!(collision_grid[1][2], 1);
+        assert_eq!(collision_grid[0][0], 0);
     }
 }
