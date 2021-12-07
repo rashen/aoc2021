@@ -2,7 +2,7 @@ use std::{fs, io::BufRead, io::BufReader};
 
 type BoardView = [[u8; 5]; 5];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Board {
     rows: BoardView,
     columns: BoardView,
@@ -24,10 +24,11 @@ impl Board {
 
     fn from_values(values: &[u8]) -> Self {
         assert_eq!(values.len(), 25);
+
         let mut rows: BoardView = [[0; 5]; 5];
-        for i in 0..5 {
-            for j in 0..5 {
-                rows[i][j] = values[i + j];
+        for (row_idx, row) in values.chunks(5).enumerate() {
+            for (column_idx, v) in row.iter().enumerate() {
+                rows[row_idx][column_idx] = *v;
             }
         }
         Self::from_matrix(rows)
@@ -60,24 +61,22 @@ fn read_input() -> (Vec<u8>, Vec<Board>) {
     string_buffer.clear();
 
     let mut boards = Vec::new();
-    // TODO: This parser is not working
-    for line in contents.lines() {
-        if let Ok(line) = line {
-            if line.starts_with('\n') {
-                let parsed_matrix = string_buffer
-                    .split_whitespace()
-                    .filter_map(|r| r.parse::<u8>().ok())
-                    .collect::<Vec<u8>>();
+    while let Ok(bytes_read) = contents.read_line(&mut string_buffer) {
+        if bytes_read == 1 {
+            let parsed_matrix = string_buffer
+                .split_whitespace()
+                .filter_map(|r| r.parse::<u8>().ok())
+                .collect::<Vec<u8>>();
+
+            if !parsed_matrix.is_empty() {
                 boards.push(Board::from_values(&parsed_matrix));
-                string_buffer.clear();
-            } else {
-                string_buffer.push_str(&line);
             }
+            string_buffer.clear();
+        } else if bytes_read == 0 {
+            break;
         }
     }
-
-    assert_eq!(boards.len(), 120);
-
+    assert_eq!(boards.len(), 100);
     (first_line, boards)
 }
 
@@ -121,17 +120,29 @@ fn find_vertical_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
 }
 
 pub fn run() {
-    let (boards, inputs) = read_input();
+    let (inputs, boards) = read_input();
+    let bingo = find_first_bingo(&boards, &inputs);
+    if bingo.is_none() {
+        panic!("No bingo");
+    }
+    let bingo = bingo.unwrap();
+    let answer = calculate_answer(&boards[bingo.board_index], &inputs[0..=bingo.input_index]);
+    println!("Task1: Final score is {}", answer);
+
+    let bingo = find_last_bingo(&boards, &inputs).unwrap();
+    let answer = calculate_answer(&boards[bingo.board_index], &inputs[0..=bingo.input_index]);
+    println!("Task2: Final score is {}", answer);
 }
 
+#[derive(PartialEq, Debug, Default)]
 struct Indices {
     board_index: usize,
     input_index: usize,
 }
 
 fn find_first_bingo(boards: &[Board], inputs: &[u8]) -> Option<Indices> {
-    for last_index in 5..inputs.len() {
-        let current_inputs = &inputs[0..last_index];
+    for last_index in 4..inputs.len() {
+        let current_inputs = &inputs[0..=last_index];
         if let Some(winning_board_index) = find_horizontal_bingo(boards, current_inputs) {
             return Some(Indices {
                 board_index: winning_board_index,
@@ -156,6 +167,32 @@ fn calculate_answer(board: &Board, inputs: &[u8]) -> u32 {
         .fold(0_u32, |acc, x| acc + *x as u32);
 
     sum_of_unmarked_numers * *inputs.last().unwrap() as u32
+}
+
+fn find_last_bingo(boards: &[Board], inputs: &[u8]) -> Option<Indices> {
+    let mut boards_without_bingo = boards.iter().map(|b| *b).collect::<Vec<Board>>();
+
+    let mut last_input_index = 0;
+    while boards_without_bingo.len() > 1 {
+        if let Some(idx) = find_first_bingo(&boards_without_bingo, &inputs) {
+            last_input_index = idx.input_index;
+            boards_without_bingo.remove(idx.board_index);
+        }
+    }
+
+    let board_index = boards.iter().position(|b| b == &boards_without_bingo[0]);
+
+    let input_index = find_first_bingo(
+        &boards[board_index.unwrap()..=board_index.unwrap()],
+        &inputs,
+    )
+    .unwrap()
+    .input_index;
+
+    Some(Indices {
+        board_index: board_index.unwrap(),
+        input_index,
+    })
 }
 
 mod tests {
@@ -191,8 +228,7 @@ mod tests {
     fn get_inputs() -> Vec<u8> {
         vec![
             7, 4, 9, 5, 11, 17, 23, 2, 0, 14, 21, 24, 10, 16, 13, 6, 15, 25, 12, 22, 18, 20, 8, 19,
-            3, 26, 1, 7, 4, 9, 5, 11, 17, 23, 2, 0, 14, 21, 24, 10, 16, 13, 6, 15, 25, 12, 22, 18,
-            20, 8, 19, 3, 26, 1,
+            3, 26, 1,
         ]
     }
 
@@ -222,7 +258,8 @@ mod tests {
         let inputs = get_inputs();
         let indices = find_first_bingo(&boards, &inputs).unwrap();
         assert_eq!(indices.board_index, 2);
-        assert_eq!(indices.input_index, 12);
+        assert_eq!(indices.input_index, 11);
+        assert_eq!(inputs[indices.input_index], 24);
     }
 
     #[test]
@@ -230,15 +267,33 @@ mod tests {
         let boards = get_boards();
         let inputs = get_inputs();
         assert_eq!(calculate_answer(&boards[2], &inputs[0..12]), 4512);
+        assert_eq!(calculate_answer(&boards[1], &inputs[0..15]), 1924);
     }
 
+    #[test]
     fn test_board_from_values() {
         let boards_from_matrix = get_boards();
-        let board_from_value = Board::from_values(&[
+        let values = [
             22, 13, 17, 11, 0, 8, 2, 23, 4, 24, 21, 9, 14, 16, 7, 6, 10, 3, 18, 5, 1, 12, 20, 15,
             19,
-        ]);
+        ];
+        assert_eq!(values.len(), 25);
+        let board_from_value = Board::from_values(&values);
 
         assert_eq!(boards_from_matrix[0], board_from_value);
+    }
+
+    #[test]
+    fn test_find_last_bingo() {
+        let boards = get_boards();
+        let inputs = get_inputs();
+        assert_eq!(
+            find_last_bingo(&boards, &inputs),
+            Some(Indices {
+                board_index: 1,
+                input_index: 14
+            })
+        );
+        assert_eq!(inputs[14], 13);
     }
 }
