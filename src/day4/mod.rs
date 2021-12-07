@@ -52,7 +52,9 @@ fn read_input() -> (Vec<u8>, Vec<Board>) {
     let file = fs::File::open(filename).unwrap();
     let mut contents = BufReader::new(file);
     let mut string_buffer = String::new();
-    contents.read_line(&mut string_buffer);
+    contents
+        .read_line(&mut string_buffer)
+        .expect("Failed to read inputs");
     let first_line = string_buffer
         .split(',')
         .filter_map(|r| r.parse::<u8>().ok())
@@ -172,10 +174,8 @@ fn calculate_answer(board: &Board, inputs: &[u8]) -> u32 {
 fn find_last_bingo(boards: &[Board], inputs: &[u8]) -> Option<Indices> {
     let mut boards_without_bingo = boards.iter().map(|b| *b).collect::<Vec<Board>>();
 
-    let mut last_input_index = 0;
     while boards_without_bingo.len() > 1 {
         if let Some(idx) = find_first_bingo(&boards_without_bingo, &inputs) {
-            last_input_index = idx.input_index;
             boards_without_bingo.remove(idx.board_index);
         }
     }
@@ -195,8 +195,8 @@ fn find_last_bingo(boards: &[Board], inputs: &[u8]) -> Option<Indices> {
     })
 }
 
+#[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
     use super::*;
 
     fn get_boards() -> Vec<Board> {
