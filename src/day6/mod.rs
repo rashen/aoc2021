@@ -21,6 +21,10 @@ impl Fish {
     }
 }
 
+fn get_days(fishes: &[Fish]) -> Vec<i32> {
+    fishes.iter().map(|f| f.days_left).collect::<Vec<i32>>()
+}
+
 fn spawn_fish(vals: &[i32]) -> Vec<Fish> {
     let mut fishes = Vec::new();
     for v in vals {
@@ -71,11 +75,45 @@ pub fn run() {
         "Task1: After 80 cycles there are {} lantern fish",
         school.len()
     );
-    step_n_times(&mut school, 256);
+
+    let init_vals = get_days(&read_input());
     println!(
         "Task2: After 256 cycles there are {} lantern fish",
-        school.len()
+        cycle_school_n_times(&init_vals, 256)
     );
+}
+
+// This approach is way faster
+fn spawn_schools(init_vals: &[i32]) -> Vec<u64> {
+    let mut fishes: Vec<u64> = vec![0; 9];
+    for v in init_vals {
+        fishes[*v as usize] += 1;
+    }
+
+    fishes
+}
+
+fn cycle_schools(fishes_per_day: Vec<u64>) -> Vec<u64> {
+    let mut new_fish_per_day = vec![0; 9];
+    for (idx, fish) in fishes_per_day.iter().enumerate() {
+        match idx {
+            0 => {
+                new_fish_per_day[6] += fish;
+                new_fish_per_day[8] += fish;
+            }
+            x => new_fish_per_day[x - 1] += fish,
+        }
+    }
+    assert_eq!(new_fish_per_day.len(), 9);
+    new_fish_per_day
+}
+
+fn cycle_school_n_times(init_vals: &[i32], n: usize) -> u64 {
+    let mut schools = spawn_schools(init_vals);
+    for _ in 0..n {
+        schools = cycle_schools(schools);
+    }
+    schools.iter().fold(0, |acc, x| acc + x)
 }
 
 #[cfg(test)]
@@ -84,10 +122,6 @@ mod tests {
 
     fn get_input() -> Vec<Fish> {
         spawn_fish(&[3, 4, 3, 1, 2])
-    }
-
-    fn get_days(fishes: &[Fish]) -> Vec<i32> {
-        fishes.iter().map(|f| f.days_left).collect::<Vec<i32>>()
     }
 
     #[test]
@@ -130,5 +164,19 @@ mod tests {
         let mut school = get_input();
         step_n_times(&mut school, 80);
         assert_eq!(school.len(), 5934);
+    }
+
+    #[test]
+    fn test_cycle_school_18_times() {
+        let init_vals = [3, 4, 3, 1, 2];
+        let total_fish = cycle_school_n_times(&init_vals, 18);
+        assert_eq!(total_fish, 26);
+    }
+
+    #[test]
+    fn test_cycle_school_80_times() {
+        let init_vals = [3, 4, 3, 1, 2];
+        let total_fish = cycle_school_n_times(&init_vals, 80);
+        assert_eq!(total_fish, 5934);
     }
 }
