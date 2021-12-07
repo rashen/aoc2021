@@ -11,7 +11,7 @@ fn main() {
     match args[1].as_str() {
         "1" => day1::run(),
         "2" => day2::run(),
-        "4" => day2::run(),
+        "4" => day4::run(),
         "5" => day5::run(),
         _ => {}
     }

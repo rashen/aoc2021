@@ -1,5 +1,8 @@
+use std::{fs, io::BufRead, io::BufReader};
+
 type BoardView = [[u8; 5]; 5];
 
+#[derive(Debug, PartialEq)]
 struct Board {
     rows: BoardView,
     columns: BoardView,
@@ -19,6 +22,17 @@ impl Board {
         }
     }
 
+    fn from_values(values: &[u8]) -> Self {
+        assert_eq!(values.len(), 25);
+        let mut rows: BoardView = [[0; 5]; 5];
+        for i in 0..5 {
+            for j in 0..5 {
+                rows[i][j] = values[i + j];
+            }
+        }
+        Self::from_matrix(rows)
+    }
+
     fn rows(&self) -> &BoardView {
         &self.rows
     }
@@ -30,6 +44,41 @@ impl Board {
     fn values(&self) -> Vec<u8> {
         self.rows.iter().flatten().map(|x| *x).collect()
     }
+}
+
+fn read_input() -> (Vec<u8>, Vec<Board>) {
+    let filename = "src/day4/input";
+    let file = fs::File::open(filename).unwrap();
+    let mut contents = BufReader::new(file);
+    let mut string_buffer = String::new();
+    contents.read_line(&mut string_buffer);
+    let first_line = string_buffer
+        .split(',')
+        .filter_map(|r| r.parse::<u8>().ok())
+        .collect::<Vec<u8>>();
+
+    string_buffer.clear();
+
+    let mut boards = Vec::new();
+    // TODO: This parser is not working
+    for line in contents.lines() {
+        if let Ok(line) = line {
+            if line.starts_with('\n') {
+                let parsed_matrix = string_buffer
+                    .split_whitespace()
+                    .filter_map(|r| r.parse::<u8>().ok())
+                    .collect::<Vec<u8>>();
+                boards.push(Board::from_values(&parsed_matrix));
+                string_buffer.clear();
+            } else {
+                string_buffer.push_str(&line);
+            }
+        }
+    }
+
+    assert_eq!(boards.len(), 120);
+
+    (first_line, boards)
 }
 
 fn find_horizontal_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
@@ -69,6 +118,10 @@ fn find_vertical_bingo(boards: &[Board], inputs: &[u8]) -> Option<usize> {
         board_index += 1;
     }
     None
+}
+
+pub fn run() {
+    let (boards, inputs) = read_input();
 }
 
 struct Indices {
@@ -177,5 +230,15 @@ mod tests {
         let boards = get_boards();
         let inputs = get_inputs();
         assert_eq!(calculate_answer(&boards[2], &inputs[0..12]), 4512);
+    }
+
+    fn test_board_from_values() {
+        let boards_from_matrix = get_boards();
+        let board_from_value = Board::from_values(&[
+            22, 13, 17, 11, 0, 8, 2, 23, 4, 24, 21, 9, 14, 16, 7, 6, 10, 3, 18, 5, 1, 12, 20, 15,
+            19,
+        ]);
+
+        assert_eq!(boards_from_matrix[0], board_from_value);
     }
 }
