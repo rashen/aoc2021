@@ -1,6 +1,29 @@
-use std::{fs, io::BufRead, io::BufReader, ops::RangeInclusive};
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::ops::Add;
 
-type Vec2 = [u32; 2];
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct Vec2 {
+    x: i32,
+    y: i32,
+}
+
+impl Add for Vec2 {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl Vec2 {
+    fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 struct Line {
@@ -9,10 +32,10 @@ struct Line {
 }
 
 impl Line {
-    fn from_raw(vals: &[u32]) -> Self {
+    fn from_raw(vals: &[i32]) -> Self {
         Self {
-            from: [vals[0], vals[1]],
-            to: [vals[2], vals[3]],
+            from: Vec2::new(vals[0], vals[1]),
+            to: Vec2::new(vals[2], vals[3]),
         }
     }
 }
@@ -27,8 +50,8 @@ fn read_input() -> Vec<Line> {
         if let Ok(result) = l {
             let values = result
                 .split(|c: char| !c.is_numeric())
-                .filter_map(|s| s.parse::<u32>().ok())
-                .collect::<Vec<u32>>();
+                .filter_map(|s| s.parse::<i32>().ok())
+                .collect::<Vec<i32>>();
 
             if !values.is_empty() {
                 parsed_input.push(Line::from_raw(&values));
@@ -39,31 +62,27 @@ fn read_input() -> Vec<Line> {
     parsed_input
 }
 
-fn get_range(x1: u32, x2: u32) -> RangeInclusive<u32> {
-    RangeInclusive::new(u32::min(x1, x2), u32::max(x1, x2))
-}
-
 // Assume only diagonal and axis aligned lines
 fn get_points_on_line(from: Vec2, to: Vec2) -> Vec<Vec2> {
-    let direction = (to[0] as f32 - from[0] as f32) / from[1] as f32 - from[1] as f32;
+    let step = Vec2::new((to.x - from.x).signum(), (to.y - from.y).signum());
 
     let mut points = vec![from];
-    while points[points.len()] != to {
+    while points[points.len() - 1] != to {
         let previous_point = points[points.len() - 1];
-        let new_point: Vec2 = [0, 0]; // TODO: Get the real value
+        let new_point = previous_point + step;
         points.push(new_point);
+        if points.len() > 1000 {
+            panic!("Stuck in iterations");
+        }
     }
     points
 }
 
-fn calculate_collision_grid(lines: &Vec<Line>, size: Vec2) -> Vec<Vec<u32>> {
-    let mut grid = vec![vec![0_u32; size[1] as usize]; size[0] as usize];
+fn calculate_collision_grid(lines: &Vec<Line>, size: Vec2) -> Vec<Vec<i32>> {
+    let mut grid = vec![vec![0_i32; size.y as usize]; size.x as usize];
     for l in lines.iter() {
-        // TODO: This will only work for axis aligned lines
-        for i in get_range(l.from[0], l.to[0]) {
-            for j in get_range(l.from[1], l.to[1]) {
-                grid[i as usize][j as usize] += 1;
-            }
+        for p in get_points_on_line(l.from, l.to) {
+            grid[p.x as usize][p.y as usize] += 1;
         }
     }
     grid
@@ -72,7 +91,7 @@ fn calculate_collision_grid(lines: &Vec<Line>, size: Vec2) -> Vec<Vec<u32>> {
 fn filter_to_axis_aligned(lines: &Vec<Line>) -> Vec<Line> {
     lines
         .iter()
-        .filter(|line| line.from[0] == line.to[0] || line.from[1] == line.to[1])
+        .filter(|line| line.from.x == line.to.x || line.from.y == line.to.y)
         .cloned()
         .collect::<Vec<Line>>()
 }
@@ -81,17 +100,17 @@ fn filter_to_diagonal_lines(lines: &Vec<Line>) -> Vec<Line> {
     lines
         .iter()
         .filter(|line| {
-            let min_x = u32::min(line.from[0], line.to[0]);
-            let max_x = u32::max(line.from[0], line.to[0]);
-            let min_y = u32::min(line.from[1], line.to[1]);
-            let max_y = u32::max(line.from[1], line.to[1]);
+            let min_x = i32::min(line.from.x, line.to.x);
+            let max_x = i32::max(line.from.x, line.to.x);
+            let min_y = i32::min(line.from.y, line.to.y);
+            let max_y = i32::max(line.from.y, line.to.y);
             max_x - min_x == max_y - min_y
         })
         .cloned()
         .collect::<Vec<Line>>()
 }
 
-fn count_collisions(grid: &Vec<Vec<u32>>, limit: u32) -> u32 {
+fn count_collisions(grid: &Vec<Vec<i32>>, limit: i32) -> i32 {
     grid.iter().flatten().fold(0, |acc, x| {
         if x >= &limit {
             return acc + 1;
@@ -103,7 +122,7 @@ fn count_collisions(grid: &Vec<Vec<u32>>, limit: u32) -> u32 {
 pub fn run() {
     let input = read_input();
     let mut filtered_lines = filter_to_axis_aligned(&input);
-    let collisions_grid = calculate_collision_grid(&filtered_lines, [1000, 1000]);
+    let collisions_grid = calculate_collision_grid(&filtered_lines, Vec2::new(1000, 1000));
     let collisions = count_collisions(&collisions_grid, 2);
     println!(
         "Task1: The number of points where 2 lines overlap: {}",
@@ -112,7 +131,7 @@ pub fn run() {
 
     let mut diagonal_lines = filter_to_diagonal_lines(&input);
     filtered_lines.append(&mut diagonal_lines);
-    let collisions_grid = calculate_collision_grid(&filtered_lines, [1000, 1000]);
+    let collisions_grid = calculate_collision_grid(&filtered_lines, Vec2::new(1000, 1000));
     let collisions = count_collisions(&collisions_grid, 2);
     println!(
         "Task2: The number of points where 2 lines overlap: {}",
@@ -150,7 +169,7 @@ mod tests {
     fn test_calculate_collision_grid() {
         let inputs = get_input();
         let filtered = filter_to_axis_aligned(&inputs);
-        let collision_grid = calculate_collision_grid(&filtered, [10, 10]);
+        let collision_grid = calculate_collision_grid(&filtered, Vec2::new(10, 10));
         assert_eq!(collision_grid[5][9], 1);
         assert_eq!(collision_grid[6][9], 0);
         assert_eq!(collision_grid[0][9], 2);
@@ -179,7 +198,7 @@ mod tests {
         let mut filtered = filter_to_axis_aligned(&inputs);
         let mut diagonal_lines = filter_to_diagonal_lines(&inputs);
         filtered.append(&mut diagonal_lines);
-        let collision_grid = calculate_collision_grid(&filtered, [10, 10]);
+        let collision_grid = calculate_collision_grid(&filtered, Vec2::new(10, 10));
         let count = count_collisions(&collision_grid, 2);
         assert_eq!(count, 12);
     }
@@ -188,8 +207,16 @@ mod tests {
     fn test_get_points_on_line() {
         let inputs = get_input();
         let points = get_points_on_line(inputs[3].from, inputs[3].to);
-        assert_eq!(points, vec![[2, 1], [2, 2]]);
+        assert_eq!(points, vec![Vec2::new(2, 2), Vec2::new(2, 1)]);
         let points = get_points_on_line(inputs[9].from, inputs[9].to);
-        assert_eq!(points, vec![[5, 5], [6, 4], [7, 3], [8, 2]]);
+        assert_eq!(
+            points,
+            vec![
+                Vec2::new(5, 5),
+                Vec2::new(6, 4),
+                Vec2::new(7, 3),
+                Vec2::new(8, 2)
+            ]
+        );
     }
 }
